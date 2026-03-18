@@ -8,6 +8,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  phone: string;
   wallet: number;
   blocked: boolean;
 }
@@ -26,16 +27,18 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const r = ref(db, "/users");
+    // Read from /players path (your app's actual user path)
+    const r = ref(db, "/players");
     const unsub = onValue(r, (snap) => {
       const data = snap.val() || {};
       setUsers(
         Object.entries(data).map(([id, v]: [string, any]) => ({
           id,
-          name: v?.name || "Unknown",
+          name: v?.name || v?.username || v?.displayName || "Unknown",
           email: v?.email || "",
-          wallet: v?.wallet || 0,
-          blocked: v?.blocked || false,
+          phone: v?.phone || v?.mobile || "",
+          wallet: v?.wallet || v?.balance || v?.coins || 0,
+          blocked: v?.blocked || v?.isBanned || false,
         })),
       );
       setLoading(false);
@@ -46,7 +49,8 @@ export default function UsersPage() {
   const filtered = users.filter(
     (u) =>
       u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()),
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      u.phone.toLowerCase().includes(search.toLowerCase()),
   );
 
   const handleWallet = async () => {
@@ -58,7 +62,7 @@ export default function UsersPage() {
     }
     setSaving(true);
     try {
-      const walletRef = ref(db, `/users/${walletModal.user.id}/wallet`);
+      const walletRef = ref(db, `/players/${walletModal.user.id}/wallet`);
       const snap = await get(walletRef);
       const current = snap.val() || 0;
       const newVal =
@@ -78,7 +82,7 @@ export default function UsersPage() {
 
   const toggleBlock = async (u: User) => {
     try {
-      await set(ref(db, `/users/${u.id}/blocked`), !u.blocked);
+      await set(ref(db, `/players/${u.id}/blocked`), !u.blocked);
       toast.success(`User ${u.blocked ? "unblocked" : "blocked"}`);
     } catch (e: any) {
       toast.error(e.message);
@@ -99,7 +103,7 @@ export default function UsersPage() {
         <input
           data-ocid="users.search_input"
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search by name, email or phone..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-9 pr-3 py-2 bg-input border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -122,7 +126,7 @@ export default function UsersPage() {
                   {[
                     "User ID",
                     "Name",
-                    "Email",
+                    "Email / Phone",
                     "Wallet",
                     "Status",
                     "Actions",
@@ -161,7 +165,12 @@ export default function UsersPage() {
                         {u.name}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {u.email}
+                        <div>{u.email}</div>
+                        {u.phone && (
+                          <div className="text-muted-foreground/70">
+                            {u.phone}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-semibold text-accent">
                         ₹{u.wallet}

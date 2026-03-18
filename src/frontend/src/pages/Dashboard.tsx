@@ -90,16 +90,30 @@ export default function DashboardPage() {
       if (loaded >= 4) setLoading(false);
     };
 
+    // Read playerCount directly, and players for wallet balance
     unsubs.push(
-      onValue(ref(db, "/users"), (snap) => {
+      onValue(ref(db, "/playerCount"), (snap) => {
+        const count = snap.val();
+        if (count !== null && typeof count === "number") {
+          current.users = count;
+        } else {
+          // fallback: count from /players node
+          current.users = 0;
+        }
+        setStats({ ...current });
+        checkLoaded();
+      }),
+    );
+
+    // Wallet balance from /players
+    unsubs.push(
+      onValue(ref(db, "/players"), (snap) => {
         const data = snap.val() || {};
-        current.users = Object.keys(data).length;
         current.walletBalance = Object.values(data).reduce(
-          (sum: number, u: any) => sum + (u?.wallet || 0),
+          (sum: number, u: any) => sum + (u?.wallet || u?.balance || 0),
           0,
         );
         setStats({ ...current });
-        checkLoaded();
       }),
     );
 

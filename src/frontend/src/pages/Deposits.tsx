@@ -58,7 +58,8 @@ export default function DepositsPage() {
   const approve = async (d: Deposit, idx: number) => {
     setProcessing(`approve_${idx}`);
     try {
-      const walletRef = ref(db, `/users/${d.userId}/wallet`);
+      // Update wallet in /players path
+      const walletRef = ref(db, `/players/${d.userId}/wallet`);
       const snap = await get(walletRef);
       const current = snap.val() || 0;
       await set(walletRef, current + d.amount);

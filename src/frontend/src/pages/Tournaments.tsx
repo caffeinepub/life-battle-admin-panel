@@ -9,6 +9,22 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { db, storage } from "../lib/firebase";
 
+const PAID_MATCH_MODES = [
+  "LW 1v1",
+  "LW 2v2",
+  "CS 1v1",
+  "CS 2v2",
+  "CS 4v4",
+  "Loss to Win",
+  "Per Kill",
+  "Survival",
+] as const;
+
+const FREE_MATCH_MODES = ["Survival"] as const;
+
+type PaidMatchMode = (typeof PAID_MATCH_MODES)[number];
+type FreeMatchMode = (typeof FREE_MATCH_MODES)[number];
+
 interface Tournament {
   id: string;
   gameName: string;
@@ -18,10 +34,12 @@ interface Tournament {
   joinedSlots: number;
   matchTime: string;
   matchType: "Free" | "Paid";
+  matchMode: PaidMatchMode | FreeMatchMode | "";
   tournamentImage: string;
   roomId: string;
   roomPassword: string;
   status: "Active" | "Closed";
+  rules: string;
 }
 
 const empty: Omit<Tournament, "id"> = {
@@ -32,10 +50,12 @@ const empty: Omit<Tournament, "id"> = {
   joinedSlots: 0,
   matchTime: "",
   matchType: "Free",
+  matchMode: "",
   tournamentImage: "",
   roomId: "",
   roomPassword: "",
   status: "Active",
+  rules: "",
 };
 
 type TextFields = "gameName" | "matchTime" | "roomId" | "roomPassword";
@@ -91,7 +111,7 @@ export default function TournamentsPage() {
   const openEdit = (t: Tournament) => {
     setEditing(t);
     const { id: _id, ...rest } = t;
-    setForm(rest);
+    setForm({ ...empty, ...rest });
     setImagePreview(t.tournamentImage || "");
     setImageFile(null);
     setModalOpen(true);
@@ -107,6 +127,10 @@ export default function TournamentsPage() {
   const handleSave = async () => {
     if (!form.gameName.trim()) {
       toast.error("Game name is required");
+      return;
+    }
+    if (form.matchType === "Paid" && !form.matchMode) {
+      toast.error("Please select a match mode for Paid tournaments");
       return;
     }
     setSaving(true);
@@ -209,6 +233,7 @@ export default function TournamentsPage() {
                     "Slots",
                     "Time",
                     "Type",
+                    "Mode",
                     "Status",
                     "Actions",
                   ].map((h) => (
@@ -225,7 +250,7 @@ export default function TournamentsPage() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       data-ocid="tournaments.empty_state"
                       className="text-center py-12 text-muted-foreground"
                     >
@@ -269,10 +294,25 @@ export default function TournamentsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.matchType === "Free" ? "bg-accent/20 text-accent" : "bg-primary/20 text-primary"}`}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            t.matchType === "Free"
+                              ? "bg-accent/20 text-accent"
+                              : "bg-primary/20 text-primary"
+                          }`}
                         >
                           {t.matchType}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {t.matchMode ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
+                            {t.matchMode}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            -
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <button
@@ -374,6 +414,7 @@ export default function TournamentsPage() {
                   />
                 </div>
               ))}
+              {/* Match Type */}
               <div>
                 <label
                   htmlFor="field-matchType"
@@ -388,6 +429,7 @@ export default function TournamentsPage() {
                     setForm({
                       ...form,
                       matchType: e.target.value as "Free" | "Paid",
+                      matchMode: "",
                     })
                   }
                   className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -396,6 +438,68 @@ export default function TournamentsPage() {
                   <option value="Paid">Paid</option>
                 </select>
               </div>
+
+              {/* Match Mode - Free shows only Survival */}
+              {form.matchType === "Free" && (
+                <div>
+                  <label
+                    htmlFor="field-matchMode-free"
+                    className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1"
+                  >
+                    Match Mode
+                  </label>
+                  <select
+                    id="field-matchMode-free"
+                    value={form.matchMode}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        matchMode: e.target.value as FreeMatchMode | "",
+                      })
+                    }
+                    className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">-- Select Mode --</option>
+                    {FREE_MATCH_MODES.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Match Mode - Paid shows all modes */}
+              {form.matchType === "Paid" && (
+                <div>
+                  <label
+                    htmlFor="field-matchMode"
+                    className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1"
+                  >
+                    Match Mode <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    id="field-matchMode"
+                    value={form.matchMode}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        matchMode: e.target.value as PaidMatchMode | "",
+                      })
+                    }
+                    className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">-- Select Mode --</option>
+                    {PAID_MATCH_MODES.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Status */}
               <div>
                 <label
                   htmlFor="field-status"
@@ -418,6 +522,29 @@ export default function TournamentsPage() {
                   <option value="Closed">Closed</option>
                 </select>
               </div>
+
+              {/* Tournament Rules */}
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="field-rules"
+                  className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1"
+                >
+                  Tournament Rules
+                </label>
+                <textarea
+                  id="field-rules"
+                  value={form.rules}
+                  onChange={(e) => setForm({ ...form, rules: e.target.value })}
+                  rows={4}
+                  placeholder="Write the rules for this match or map (e.g. no teaming, only shotguns allowed, Bermuda map only...)"
+                  className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  These rules will be shown to players when they join.
+                </p>
+              </div>
+
+              {/* Image Upload */}
               <div className="sm:col-span-2">
                 <p className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                   Tournament Image
